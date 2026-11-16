@@ -1,11 +1,16 @@
-name: Split and Deploy Large Article Repository
+name: Deploy Static Article Site to GitHub Pages
 
 on:
+  # Menjalankan workflow setiap kali ada push ke branch utama (main/master)
   push:
     branches: [ "main", "master" ]
+  
+  # Bisa juga dijalankan secara berkala (cron) setiap 6 jam untuk update RSS otomatis
   schedule:
-    - cron: '0 */6 * * *'  # Berjalan otomatis setiap 6 jam
-  workflow_dispatch:        # Bisa diklik "Run workflow" manual dari GitHub
+    - cron: '0 */6 * * *'
+
+  # Memungkinkan workflow dijalankan secara manual dari tab Actions
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -17,7 +22,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  split-and-build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -27,20 +32,17 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+          cache: 'pip'
 
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install feedparser requests beautifulsoup4
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; else pip install feedparser requests beautifulsoup4; fi
 
-      - name: Run Python Script with 200 Pagination Limit
+      - name: Run Article Generator Script
         run: |
-          # Pastikan nama file skrip Python utama atau skrip pemecahmu sesuai (misal: import.py atau split.py)
+          # Sesuaikan nama skrip Python utamamu di sini (misal: import.py atau main.py)
           python import.py
-
-      - name: Check Generated Files (Debug)
-        run: |
-          ls -la
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -48,6 +50,7 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
         with:
+          # Direktori hasil output HTML web statis kamu (pastikan sesuai folder build)
           path: '.'
 
       - name: Deploy to GitHub Pages
