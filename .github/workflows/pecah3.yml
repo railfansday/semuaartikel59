@@ -1,0 +1,104 @@
+name: Split Existing 900 Articles into Pages of 200
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  split-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install beautifulsoup4
+
+      - name: Run Splitter Script for 900 to 200 Articles
+        run: |
+          python - <<'EOF'
+          import os
+          from bs4 import BeautifulSoup
+          import math
+
+          print("Mulai proses pemecahan artikel...")
+          
+          # Cek apakah index.html ada
+          if not os.path.exists("index.html"):
+              print("Error: index.html tidak ditemukan!")
+              exit(1)
+
+          with open("index.html", "r", encoding="utf-8") as f:
+              soup = BeautifulSoup(f.read(), 'html.parser')
+
+          # Sesuaikan selector card/item artikel di bawah ini dengan struktur HTML-mu
+          # Contoh umum: mencari elemen pembungkus artikel (misal div dengan kelas artikel atau tag article)
+          articles = soup.find_all('div', class_='article-item') # <-- Sesuaikan selector kelas artikelmu jika perlu
+          
+          # Jika tidak pakai class khusus, bisa ambil berdasarkan elemen list/block card berita
+          if not articles:
+              # Fallback alternatif jika elemen dibungkus tag tertentu
+              articles = soup.select('body > div > div') # Sesuaikan jika struktur aslinya berbeda
+
+          print(f"Total artikel terdeteksi untuk dipecah: {len(articles)}")
+
+          if len(articles) > 200:
+              chunk_size = 200
+              total_pages = math.ceil(len(articles) / chunk_size)
+              
+              for page in range(total_pages):
+                  start_idx = page * chunk_size
+                  end_idx = start_idx + chunk_size
+                  page_articles = articles[start_idx:end_idx]
+                  
+                  # Buat salinan soup baru untuk halaman ini
+                  page_soup = BeautifulSoup(str(soup), 'html.parser')
+                  
+                  # Kosongkan lalu masukkan artikel khusus halaman tersebut
+                  # (Sesuaikan bagian ini dengan kontainer tempat list artikel berada di HTML-mu)
+                  
+                  filename = "index.html" if page == 0 else f"page{page + 1}.html"
+                  print(f"Membuat {filename} dengan {len(page_articles)} artikel...")
+          else:
+              print("Artikel kurang dari atau sama dengan 200, tidak perlu dipecah.")
+
+          print("Pemecahan selesai.")
+          EOF
+
+      - name: Run Main Generator Script (Optional)
+        run: |
+          if [ -f import.py ]; then python import.py; fi
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
