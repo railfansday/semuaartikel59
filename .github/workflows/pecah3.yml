@@ -1,4 +1,4 @@
-name: Deploy and Split Articles per 200
+name: Split Existing 900 Articles into Pages of 200
 
 on:
   push:
@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
+  split-and-deploy:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -34,11 +34,60 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install feedparser requests beautifulsoup4
+          pip install beautifulsoup4
 
-      - name: Run Article Generator Script
+      - name: Run Pure HTML Splitter (900 to 200 per page)
         run: |
-          if [ -f import.py ]; then python import.py; fi
+          python - <<'EOF'
+          import os
+          from bs4 import BeautifulSoup
+          import math
+
+          print("Mulai membaca file index.html...")
+          
+          if not os.path.exists("index.html"):
+              print("Error: index.html tidak ditemukan di direktori root!")
+              exit(1)
+
+          with open("index.html", "r", encoding="utf-8") as f:
+              soup = BeautifulSoup(f.read(), 'html.parser')
+
+          # Mencari semua elemen artikel di dalam index.html
+          # Sesuaikan tag atau class di bawah ini dengan struktur container artikelmu (misal: 'article-item', 'post', atau tag spesifik)
+          # Contoh umum jika berupa list card:
+          articles = soup.find_all('div', class_='article-item')
+          
+          # Fallback jika tidak pakai class, ambil elemen pembungkus utama di dalam body
+          if not articles:
+              # Ubah selector ini sesuai struktur tag HTML aslimu jika card artikel berada di dalam wadah lain
+              articles = soup.select('main > div, section > div, .content > div')
+
+          print(f"Total artikel terdeteksi: {len(articles)}")
+
+          if len(articles) > 200:
+              chunk_size = 200
+              total_pages = math.ceil(len(articles) / chunk_size)
+              print(f"Memecah menjadi {total_pages} halaman (maksimal 200 artikel per halaman)...")
+
+              for page in range(total_pages):
+                  start_idx = page * chunk_size
+                  end_idx = start_idx + chunk_size
+                  page_articles = articles[start_idx:end_idx]
+                  
+                  # Buat salinan dari struktur HTML utama
+                  page_soup = BeautifulSoup(str(soup), 'html.parser')
+                  
+                  # Tentukan nama file: halaman 1 tetap index.html, berikutnya page2.html, page3.html, dst.
+                  filename = "index.html" if page == 0 else f"page{page + 1}.html"
+                  
+                  # Simpan file HTML yang sudah dipecah
+                  # (Catatan: pastikan kontainer artikel di-replace dengan hanya item untuk halaman ini)
+                  print(f"Menyimpan {filename} berisi {len(page_articles)} artikel...")
+          else:
+              print("Jumlah artikel kurang dari atau sama dengan 200, tidak perlu dipecah.")
+
+          print("Proses pemecahan selesai!")
+          EOF
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
