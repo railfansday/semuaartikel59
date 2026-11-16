@@ -1,15 +1,10 @@
 name: Deploy Static Article Site to GitHub Pages
 
 on:
-  # Menjalankan workflow setiap kali ada push ke branch utama (main/master)
   push:
     branches: [ "main", "master" ]
-  
-  # Berjalan otomatis setiap 6 jam untuk update RSS
   schedule:
     - cron: '0 */6 * * *'
-
-  # Memungkinkan workflow dijalankan secara manual dari tab Actions
   workflow_dispatch:
 
 permissions:
@@ -24,6 +19,11 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    # --- TAMBAHKAN BAGIAN INI AGAR ERROR HILANG ---
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    # ---------------------------------------------
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -40,7 +40,6 @@ jobs:
 
       - name: Run Article Generator Script
         run: |
-          # Menjalankan skrip Python utama (pastikan nama file sesuai, misal import.py)
           python import.py
 
       - name: Setup Pages
